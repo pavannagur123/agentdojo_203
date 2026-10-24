@@ -1,0 +1,28 @@
+name: PE6203 smoke tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install locked development environment
+        run: uv sync --frozen --dev
+      - name: Run keyless setup smoke tests
+        run: uv run pytest tests/test_pe6203_smoke.py -q
+      - name: Check benchmark command
+        run: uv run python -m agentdojo.scripts.benchmark --help

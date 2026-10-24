@@ -14,6 +14,12 @@
 [Read Paper](https://arxiv.org/abs/2406.13352) | [Inspect Results](https://agentdojo.spylab.ai/results/)
 </center>
 
+> [!NOTE]
+> This fork is the starting point for NTU PE6203 Group Project 2, **Safety Approval
+> Policies for Agent Harnesses**. See the [project setup guide](docs/pe6203-setup.md)
+> for a reproducible local installation, credential handling, smoke tests, and the
+> planned approval-gate integration point.
+
 ## Quickstart
 
 ```bash
