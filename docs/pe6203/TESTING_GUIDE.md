@@ -1,0 +1,92 @@
+# BASIL testing and experiment guide
+
+## Keyless verification
+
+After installing the development dependencies, run:
+
+```bash
+uv run ruff check .
+uv run pyright
+uv run pytest tests
+```
+
+The BASIL-only tests can be run with:
+
+```bash
+uv run pytest -q tests/test_approval
+```
+
+They verify the unchanged upstream path, direct approval, denial, budget exhaustion, the two required baselines, effect classification, provenance, and nested-call interception. These tests never call a paid model.
+
+Run the offline static policy audit with:
+
+```bash
+uv run python -m agentdojo.scripts.basil_static_audit \
+  --output results/basil-static-audit.json
+```
+
+The audit uses task ground truth only to diagnose policy coverage. Its malicious proxy labels attack arguments as if they came from untrusted tool output. It must not be reported as the final benchmark result, and its ground-truth information is never given to BASIL or the reviewer during real runs.
+
+## Local secrets
+
+Copy `.env.example` to `.env` and populate it locally:
+
+```text
+OPENAI_COMPATIBLE_BASE_URL=https://openrouter.ai/api/v1
+OPENAI_COMPATIBLE_API_KEY=your-key-here
+```
+
+`.env` is ignored by Git. For GitHub Actions, create repository secrets with the same names; never place a real key in a workflow or committed file.
+
+## Benchmark controls
+
+No approval gate (upstream control):
+
+```bash
+uv run python -m agentdojo.scripts.benchmark \
+  --model openai-compatible --model-id <agent-model-id> \
+  --suite workspace --user-task user_task_0
+```
+
+BASIL with a keyless deterministic reviewer:
+
+```bash
+uv run python -m agentdojo.scripts.benchmark \
+  --model openai-compatible --model-id <agent-model-id> \
+  --suite workspace --user-task user_task_0 \
+  --approval-policy basil --approval-budget 2
+```
+
+BASIL with the simulated LLM reviewer:
+
+```bash
+uv run python -m agentdojo.scripts.benchmark \
+  --model openai-compatible --model-id <agent-model-id> \
+  --suite workspace --user-task user_task_0 \
+  --approval-policy basil --approval-budget 2 \
+  --approval-reviewer openai-compatible \
+  --approval-reviewer-model <reviewer-model-id>
+```
+
+Replace `basil` with `full-approve` or `full-escalate` to run the required baselines. Use distinct output directories or `--force-rerun` when comparing policies because AgentDojo caches completed task traces.
+
+## Experiment matrix
+
+For each selected agent model and attack condition, run:
+
+- gate disabled as the upstream control;
+- full-approve;
+- full-escalate;
+- BASIL at `k = 0, 1, 2, 3`, or the range selected for the report.
+
+Report task completion, attack success, safe task completion (`utility AND NOT attack_success`), number/rate of escalations, reviewer tokens and cost, and representative over-permissive and over-conservative trajectories.
+
+Generate the report artifacts after the runs finish:
+
+```bash
+uv run python -m agentdojo.scripts.basil_report runs \
+  --output results/basil-report.json \
+  --csv results/basil-summary.csv
+```
+
+The JSON includes aggregate rows plus paths and decision ledgers for representative failure trajectories. OpenRouter-backed calls request provider-reported usage so agent and reviewer token counts and costs can be separated when the provider returns them.
