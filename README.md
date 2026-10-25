@@ -52,6 +52,10 @@ python -m agentdojo.scripts.benchmark --model gpt-4o-2024-05-13 \
 
 To inspect the results, go to the dedicated [results page](https://agentdojo.spylab.ai/results/) of the documentation. AgentDojo results are also listed in the [Invariant Benchmark Registry](https://explorer.invariantlabs.ai/benchmarks/).Agent
 
+## PE6203 BASIL approval gate
+
+This fork adds an optional **Budget-Aware Scoped Intent Ledger (BASIL)** gate for the NTU PE6203 safety-approval-policies project. The original AgentDojo path remains the default when no approval policy is selected. See the [BASIL design](docs/pe6203/BASIL_GATE.md), [upstream/project separation](docs/pe6203/UPSTREAM_VS_PROJECT.md), and [testing guide](docs/pe6203/TESTING_GUIDE.md).
+
 ## Documentation of the Dojo
 
 Take a look at our [documentation](https://agentdojo.spylab.ai/).

@@ -29,6 +29,7 @@ from agentdojo.agent_pipeline.tool_execution import (
     ToolsExecutor,
     tool_result_to_str,
 )
+from agentdojo.approval.factory import ApprovalPolicyName, ReviewerName, build_approval_gate
 from agentdojo.functions_runtime import EmptyEnv, Env, FunctionsRuntime
 from agentdojo.logging import Logger
 from agentdojo.models import MODEL_PROVIDERS, ModelsEnum
@@ -124,9 +125,13 @@ def get_llm(provider: str, model: str, model_id: str | None, tool_delimiter: str
         base_url = os.getenv("OPENAI_COMPATIBLE_BASE_URL")
         api_key = os.getenv("OPENAI_COMPATIBLE_API_KEY")
         if not base_url:
-            raise ValueError("OPENAI_COMPATIBLE_BASE_URL environment variable is required for openai-compatible provider")
+            raise ValueError(
+                "OPENAI_COMPATIBLE_BASE_URL environment variable is required for openai-compatible provider"
+            )
         if not api_key:
-            raise ValueError("OPENAI_COMPATIBLE_API_KEY environment variable is required for openai-compatible provider")
+            raise ValueError(
+                "OPENAI_COMPATIBLE_API_KEY environment variable is required for openai-compatible provider"
+            )
         if model_id is None:
             raise ValueError("--model-id is required for openai-compatible provider")
         client = openai.OpenAI(
@@ -160,6 +165,14 @@ class PipelineConfig(BaseModel):
     override `system_message_name`."""
     tool_output_format: Literal["yaml", "json"] | None = None
     """Format to use for tool outputs. If not provided, the default format is yaml."""
+    approval_policy: ApprovalPolicyName | None = None
+    """Optional tool-call approval policy. None preserves upstream AgentDojo behaviour."""
+    approval_budget: int = 0
+    """Maximum reviewer escalations per task; later escalations fail closed."""
+    approval_reviewer: ReviewerName = "deterministic"
+    """Reviewer used for escalated calls. The deterministic option is intended for tests."""
+    approval_reviewer_model: str | None = None
+    """Model id used by the openai-compatible simulated reviewer."""
 
     @model_validator(mode="after")
     def validate_system_message(self) -> Self:
@@ -213,13 +226,28 @@ class AgentPipeline(BasePipelineElement):
         else:
             tool_output_formatter = tool_result_to_str
 
+        approval_gate = (
+            build_approval_gate(
+                config.approval_policy,
+                config.approval_budget,
+                config.approval_reviewer,
+                config.approval_reviewer_model,
+            )
+            if config.approval_policy is not None
+            else None
+        )
+        tools_executor = partial(ToolsExecutor, approval_gate=approval_gate)
+        approval_name_suffix = (
+            f"-approval-{config.approval_policy}-k{config.approval_budget}" if approval_gate is not None else ""
+        )
+
         if config.defense is None:
-            tools_loop = ToolsExecutionLoop([ToolsExecutor(tool_output_formatter), llm])
+            tools_loop = ToolsExecutionLoop([tools_executor(tool_output_formatter), llm])
             pipeline = cls([system_message_component, init_query_component, llm, tools_loop])
-            pipeline.name = llm_name
+            pipeline.name = f"{llm_name}{approval_name_suffix}"
             return pipeline
         if config.defense == "tool_filter":
-            tools_loop = ToolsExecutionLoop([ToolsExecutor(tool_output_formatter), llm])
+            tools_loop = ToolsExecutionLoop([tools_executor(tool_output_formatter), llm])
             if not isinstance(llm, OpenAILLM):
                 raise ValueError("Tool filter is only supported for OpenAI models")
             if llm_name is None:
@@ -233,12 +261,12 @@ class AgentPipeline(BasePipelineElement):
                     tools_loop,
                 ]
             )
-            pipeline.name = f"{llm_name}-{config.defense}"
+            pipeline.name = f"{llm_name}-{config.defense}{approval_name_suffix}"
             return pipeline
         if config.defense == "transformers_pi_detector":
             tools_loop = ToolsExecutionLoop(
                 [
-                    ToolsExecutor(tool_output_formatter),
+                    tools_executor(tool_output_formatter),
                     TransformersBasedPIDetector(
                         model_name="protectai/deberta-v3-base-prompt-injection-v2",
                         safe_label="SAFE",
@@ -257,12 +285,12 @@ class AgentPipeline(BasePipelineElement):
                     tools_loop,
                 ]
             )
-            pipeline.name = f"{llm_name}-{config.defense}"
+            pipeline.name = f"{llm_name}-{config.defense}{approval_name_suffix}"
             return pipeline
         if config.defense == "repeat_user_prompt":
-            tools_loop = ToolsExecutionLoop([ToolsExecutor(tool_output_formatter), InitQuery(), llm])
+            tools_loop = ToolsExecutionLoop([tools_executor(tool_output_formatter), InitQuery(), llm])
             pipeline = cls([system_message_component, init_query_component, llm, tools_loop])
-            pipeline.name = f"{llm_name}-{config.defense}"
+            pipeline.name = f"{llm_name}-{config.defense}{approval_name_suffix}"
             return pipeline
         if config.defense == "spotlighting_with_delimiting":
             # Defense from https://arxiv.org/abs/2403.14720
@@ -272,8 +300,10 @@ class AgentPipeline(BasePipelineElement):
                 "between those symbols."
             )
             delimited_tool_output_formatter = lambda result: f"<<{tool_output_formatter(result)}>>"
-            tools_loop = ToolsExecutionLoop([ToolsExecutor(tool_output_formatter=delimited_tool_output_formatter), llm])
+            tools_loop = ToolsExecutionLoop(
+                [tools_executor(tool_output_formatter=delimited_tool_output_formatter), llm]
+            )
             pipeline = cls([system_message_component, init_query_component, llm, tools_loop])
-            pipeline.name = f"{llm_name}-{config.defense}"
+            pipeline.name = f"{llm_name}-{config.defense}{approval_name_suffix}"
             return pipeline
         raise ValueError("Invalid defense name")
