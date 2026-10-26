@@ -15,6 +15,9 @@ class FakeCompletions:
     def queue(self, approved: bool, reason: str = "Canned reviewer decision.") -> None:
         self.decisions.append({"approved": approved, "reason": reason})
 
+    def queue_payload(self, payload: dict[str, Any]) -> None:
+        self.decisions.append(payload)
+
     def create(self, **kwargs: Any) -> Any:
         self.calls.append(kwargs)
         decision = self.decisions.pop(0) if self.decisions else {

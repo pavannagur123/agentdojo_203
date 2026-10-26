@@ -1,3 +1,5 @@
+from typing import Any
+
 from agentdojo.agent_pipeline.tool_execution import ToolsExecutor
 from agentdojo.approval.gate import ApprovalGate
 from agentdojo.approval.intent import RuleBasedIntentCompiler
@@ -166,6 +168,24 @@ def test_escalation_budget_is_consumed_then_fails_closed(llm_reviewer: OpenAICom
     assert gate.records[0].final_decision == ApprovalDecision.APPROVE
     assert gate.records[1].final_decision == ApprovalDecision.DENY
     assert "budget exhausted" in (_last_tool_message(list(result_messages))["error"] or "").lower()
+
+
+def test_exact_repeated_escalation_reuses_llm_decision(
+    llm_reviewer: OpenAICompatibleReviewer,
+    fake_openai_client: Any,
+) -> None:
+    gate = ApprovalGate(FullEscalatePolicy(), llm_reviewer, escalation_budget=1)
+    call = FunctionCall(function="send_email", args={"address": "alice@example.com", "body": "hello"})
+    gate.start_task("Send Alice hello")
+
+    first = gate.decide("Send Alice hello", call, "Send email", [_assistant_message(call)])
+    second = gate.decide("Send Alice hello", call, "Send email", [_assistant_message(call)])
+
+    assert first.decision == ApprovalDecision.APPROVE
+    assert second.decision == ApprovalDecision.APPROVE
+    assert gate.escalations_used == 1
+    assert "Reused prior exact LLM review" in second.reason
+    assert len(fake_openai_client.chat.completions.calls) == 1
 
 
 def test_full_approve_and_full_escalate_baselines(llm_reviewer: OpenAICompatibleReviewer) -> None:

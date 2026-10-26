@@ -54,6 +54,10 @@ class AuthorizationClause(BaseModel):
     text: str
     tokens: set[str] = Field(default_factory=set)
     prohibited: bool = False
+    action: str | None = None
+    targets: tuple[str, ...] = ()
+    allowed_data_sources: tuple[str, ...] = ()
+    max_executions: int | None = Field(default=None, ge=1)
 
 
 class AuthorizationContract(BaseModel):
@@ -61,6 +65,11 @@ class AuthorizationContract(BaseModel):
 
     original_request: str
     clauses: tuple[AuthorizationClause, ...]
+    planner_model: str | None = None
+    planner_error: str | None = None
+    planner_input_tokens: int = 0
+    planner_output_tokens: int = 0
+    planner_estimated_cost_usd: float = 0.0
 
 
 class ToolMetadata(BaseModel):

@@ -6,6 +6,7 @@ from typing import Literal
 from openai import OpenAI
 
 from agentdojo.approval.gate import ApprovalGate
+from agentdojo.approval.intent import OpenAICompatibleIntentCompiler
 from agentdojo.approval.policies import BasilPolicy, FullApprovePolicy, FullEscalatePolicy
 from agentdojo.approval.reviewers import OpenAICompatibleReviewer
 
@@ -18,6 +19,7 @@ def build_approval_gate(
     policy_name: ApprovalPolicyName,
     escalation_budget: int,
     reviewer_model: str | None = None,
+    planner_model: str | None = None,
 ) -> ApprovalGate:
     policies = {
         "full-approve": FullApprovePolicy(),
@@ -45,5 +47,8 @@ def build_approval_gate(
             f"Missing configuration: {', '.join(missing)}."
         )
     assert base_url is not None and api_key is not None and reviewer_model is not None
-    reviewer = OpenAICompatibleReviewer(OpenAI(base_url=base_url, api_key=api_key), reviewer_model)
-    return ApprovalGate(policies[policy_name], reviewer, escalation_budget)
+    client = OpenAI(base_url=base_url, api_key=api_key)
+    reviewer = OpenAICompatibleReviewer(client, reviewer_model)
+    planner_model = planner_model or os.getenv("OPENAI_COMPATIBLE_APPROVAL_PLANNER_MODEL")
+    planner = OpenAICompatibleIntentCompiler(client, planner_model) if planner_model else None
+    return ApprovalGate(policies[policy_name], reviewer, escalation_budget, intent_compiler=planner)

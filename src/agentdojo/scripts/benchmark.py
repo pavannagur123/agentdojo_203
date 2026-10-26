@@ -41,6 +41,7 @@ def benchmark_suite(
     approval_policy: ApprovalPolicyName | None = None,
     approval_budget: int = 0,
     approval_reviewer_model: str | None = None,
+    approval_planner_model: str | None = None,
 ) -> SuiteResults:
     if not load_dotenv(".env"):
         warnings.warn("No .env file found")
@@ -66,6 +67,7 @@ def benchmark_suite(
             approval_policy=approval_policy,
             approval_budget=approval_budget,
             approval_reviewer_model=approval_reviewer_model,
+            approval_planner_model=approval_planner_model,
         )
     )
     with OutputLogger(str(logdir), live=live):
@@ -174,6 +176,12 @@ def show_results(suite_name: str, results: SuiteResults, show_security_results: 
     help="OpenAI-compatible model id for the LLM-simulated human reviewer.",
 )
 @click.option(
+    "--approval-planner-model",
+    type=str,
+    default=None,
+    help="Optional OpenAI-compatible model id that structures the user's authorization plan.",
+)
+@click.option(
     "--system-message-name",
     type=str,
     default=None,
@@ -246,6 +254,7 @@ def main(
     approval_policy: ApprovalPolicyName | None = None,
     approval_budget: int = 0,
     approval_reviewer_model: str | None = None,
+    approval_planner_model: str | None = None,
     tool_delimiter: str = "tool",
     system_message_name: str | None = None,
     system_message: str | None = None,
@@ -286,6 +295,7 @@ def main(
                 approval_policy=approval_policy,
                 approval_budget=approval_budget,
                 approval_reviewer_model=approval_reviewer_model,
+                approval_planner_model=approval_planner_model,
             )
         combined_results = SuiteResults(utility_results={}, security_results={}, injection_tasks_utility_results={})
         for suite_name, result in results.items():
@@ -328,6 +338,7 @@ def main(
             repeat(approval_policy),
             repeat(approval_budget),
             repeat(approval_reviewer_model),
+            repeat(approval_planner_model),
         )
         results = p.starmap(benchmark_suite, arguments)
 

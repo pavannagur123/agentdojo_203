@@ -1,3 +1,4 @@
+import json
 from typing import Any
 
 import pytest
@@ -53,3 +54,51 @@ def test_llm_reviewer_uses_json_temperature_zero_and_records_model(
     assert request["model"] == "test/reviewer-model"
     assert request["temperature"] == 0
     assert request["response_format"] == {"type": "json_object"}
+
+
+def test_llm_planner_structures_request_before_reviewer(
+    configured_llm_reviewer: Any,
+) -> None:
+    configured_llm_reviewer.chat.completions.queue_payload(
+        {
+            "clauses": [
+                {
+                    "text": "Pay the amount stated in bill.txt",
+                    "prohibited": False,
+                    "action": "pay",
+                    "targets": ["bill recipient"],
+                    "allowed_data_sources": ["bill.txt"],
+                    "max_executions": 1,
+                }
+            ]
+        }
+    )
+    configured_llm_reviewer.chat.completions.queue(True, "The payment matches the plan.")
+    gate = build_approval_gate(
+        "full-escalate",
+        escalation_budget=1,
+        reviewer_model="test/reviewer-model",
+        planner_model="test/planner-model",
+    )
+    query = "Read bill.txt and pay the amount stated in it"
+    gate.start_task(query)
+
+    result = gate.decide(
+        query,
+        FunctionCall(function="send_money", args={"amount": 10, "recipient": "Alice"}),
+        "Send money",
+        [],
+    )
+
+    assert result.decision == ApprovalDecision.APPROVE
+    assert gate.contract is not None
+    assert gate.contract.planner_model == "test/planner-model"
+    assert gate.contract.planner_input_tokens == 11
+    assert gate.contract.planner_output_tokens == 4
+    assert gate.contract.clauses[0].action == "pay"
+    assert gate.contract.clauses[0].allowed_data_sources == ("bill.txt",)
+    planner_request, reviewer_request = configured_llm_reviewer.chat.completions.calls
+    assert planner_request["model"] == "test/planner-model"
+    packet = json.loads(reviewer_request["messages"][1]["content"])
+    assert packet["authorization_planner_model"] == "test/planner-model"
+    assert packet["request_clauses"][0]["max_executions"] == 1
