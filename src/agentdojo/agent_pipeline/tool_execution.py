@@ -1,5 +1,6 @@
 from ast import literal_eval
 from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING
 
 import yaml
 from pydantic import BaseModel
@@ -9,6 +10,26 @@ from agentdojo.agent_pipeline.llms.google_llm import EMPTY_FUNCTION_NAME
 from agentdojo.functions_runtime import EmptyEnv, Env, FunctionReturnType, FunctionsRuntime
 from agentdojo.logging import Logger
 from agentdojo.types import ChatMessage, ChatToolResultMessage, text_content_block_from_string
+
+if TYPE_CHECKING:
+    from agentdojo.approval.gate import ApprovalGate
+
+
+def _nested_function_calls(value):
+    """Yield nested calls in execution order before their parent call."""
+
+    from agentdojo.functions_runtime import FunctionCall
+
+    if isinstance(value, FunctionCall):
+        for nested_value in value.args.values():
+            yield from _nested_function_calls(nested_value)
+        yield value
+    elif isinstance(value, dict):
+        for nested_value in value.values():
+            yield from _nested_function_calls(nested_value)
+    elif isinstance(value, list):
+        for nested_value in value:
+            yield from _nested_function_calls(nested_value)
 
 
 def is_string_list(s: str):
@@ -52,8 +73,13 @@ class ToolsExecutor(BasePipelineElement):
             converts the output to structured YAML.
     """
 
-    def __init__(self, tool_output_formatter: Callable[[FunctionReturnType], str] = tool_result_to_str) -> None:
+    def __init__(
+        self,
+        tool_output_formatter: Callable[[FunctionReturnType], str] = tool_result_to_str,
+        approval_gate: "ApprovalGate | None" = None,
+    ) -> None:
         self.output_formatter = tool_output_formatter
+        self.approval_gate = approval_gate
 
     def query(
         self,
@@ -69,6 +95,9 @@ class ToolsExecutor(BasePipelineElement):
             return query, runtime, env, messages, extra_args
         if messages[-1]["tool_calls"] is None or len(messages[-1]["tool_calls"]) == 0:
             return query, runtime, env, messages, extra_args
+
+        if self.approval_gate is not None and not any(message["role"] == "tool" for message in messages):
+            self.approval_gate.start_task(query)
 
         tool_call_results = []
         for tool_call in messages[-1]["tool_calls"]:
@@ -99,6 +128,43 @@ class ToolsExecutor(BasePipelineElement):
             for arg_k, arg_v in tool_call.args.items():
                 if isinstance(arg_v, str) and is_string_list(arg_v):
                     tool_call.args[arg_k] = literal_eval(arg_v)
+
+            if self.approval_gate is not None:
+                calls_to_authorize = [
+                    *(nested for argument in tool_call.args.values() for nested in _nested_function_calls(argument)),
+                    tool_call,
+                ]
+                denied_result = None
+                for proposed_call in calls_to_authorize:
+                    if proposed_call.function not in runtime.functions:
+                        continue
+                    tool = runtime.functions[proposed_call.function]
+                    gate_result = self.approval_gate.decide(
+                        query,
+                        proposed_call,
+                        tool.description,
+                        messages,
+                    )
+                    if gate_result.decision.value == "deny":
+                        denied_result = gate_result
+                        break
+                extra_args = dict(extra_args)
+                extra_args["basil"] = self.approval_gate.snapshot()
+                logger = Logger().get()
+                set_contextarg = getattr(logger, "set_contextarg", None)
+                if set_contextarg is not None:
+                    set_contextarg("basil", self.approval_gate.snapshot())
+                if denied_result is not None:
+                    tool_call_results.append(
+                        ChatToolResultMessage(
+                            role="tool",
+                            content=[text_content_block_from_string("")],
+                            tool_call_id=tool_call.id,
+                            tool_call=tool_call,
+                            error=f"BASIL blocked this tool call: {denied_result.reason}",
+                        )
+                    )
+                    continue
 
             tool_call_result, error = runtime.run_function(env, tool_call.function, tool_call.args)
             tool_call_id = tool_call.id

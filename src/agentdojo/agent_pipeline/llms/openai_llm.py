@@ -21,7 +21,9 @@ from openai.types.shared_params import FunctionDefinition
 from tenacity import retry, retry_if_not_exception_type, stop_after_attempt, wait_random_exponential
 
 from agentdojo.agent_pipeline.base_pipeline_element import BasePipelineElement
+from agentdojo.approval.usage import add_usage, extract_usage, requests_usage_cost
 from agentdojo.functions_runtime import EmptyEnv, Env, Function, FunctionCall, FunctionsRuntime
+from agentdojo.logging import Logger
 from agentdojo.types import (
     ChatAssistantMessage,
     ChatMessage,
@@ -161,6 +163,7 @@ def chat_completion_request(
         tool_choice="auto" if tools else NOT_GIVEN,
         temperature=temperature if temperature is not None else NOT_GIVEN,
         reasoning_effort=reasoning_effort or NOT_GIVEN,
+        extra_body={"usage": {"include": True}} if requests_usage_cost(client) else None,
     )
 
 
@@ -184,6 +187,13 @@ class OpenAILLM(BasePipelineElement):
         self.model = model
         self.temperature = temperature
         self.reasoning_effort: ChatCompletionReasoningEffort | None = reasoning_effort
+        self.task_usage: dict[str, int | float] = {
+            "requests": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "cost_usd": 0.0,
+        }
 
     def query(
         self,
@@ -193,12 +203,27 @@ class OpenAILLM(BasePipelineElement):
         messages: Sequence[ChatMessage] = [],
         extra_args: dict = {},
     ) -> tuple[str, FunctionsRuntime, Env, Sequence[ChatMessage], dict]:
+        if not any(message["role"] == "assistant" for message in messages):
+            self.task_usage = {
+                "requests": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_tokens": 0,
+                "cost_usd": 0.0,
+            }
         openai_messages = [_message_to_openai(message, self.model) for message in messages]
         openai_tools = [_function_to_openai(tool) for tool in runtime.functions.values()]
         completion = chat_completion_request(
             self.client, self.model, openai_messages, openai_tools, self.reasoning_effort, self.temperature
         )
         output = _openai_to_assistant_message(completion.choices[0].message)
+        self.task_usage = add_usage(self.task_usage, {"requests": 1, **extract_usage(completion)})
+        extra_args = dict(extra_args)
+        extra_args["agent_usage"] = {"model": self.model, **self.task_usage}
+        logger = Logger().get()
+        set_contextarg = getattr(logger, "set_contextarg", None)
+        if set_contextarg is not None:
+            set_contextarg("agent_usage", extra_args["agent_usage"])
         messages = [*messages, output]
         return query, runtime, env, messages, extra_args
 

@@ -13,6 +13,12 @@ from rich.live import Live
 from rich.logging import RichHandler
 
 from agentdojo.agent_pipeline.agent_pipeline import DEFENSES, AgentPipeline, PipelineConfig
+from agentdojo.approval.factory import (
+    APPROVAL_POLICIES,
+    APPROVAL_REVIEWERS,
+    ApprovalPolicyName,
+    ReviewerName,
+)
 from agentdojo.attacks.attack_registry import ATTACKS, load_attack
 from agentdojo.benchmark import SuiteResults, benchmark_suite_with_injections, benchmark_suite_without_injections
 from agentdojo.logging import OutputLogger
@@ -37,6 +43,10 @@ def benchmark_suite(
     system_message: str | None = None,
     live: Live | None = None,
     tool_output_format: Literal["yaml", "json"] | None = None,
+    approval_policy: ApprovalPolicyName | None = None,
+    approval_budget: int = 0,
+    approval_reviewer: ReviewerName = "deterministic",
+    approval_reviewer_model: str | None = None,
 ) -> SuiteResults:
     if not load_dotenv(".env"):
         warnings.warn("No .env file found")
@@ -59,6 +69,10 @@ def benchmark_suite(
             system_message_name=system_message_name,
             system_message=system_message,
             tool_output_format=tool_output_format,
+            approval_policy=approval_policy,
+            approval_budget=approval_budget,
+            approval_reviewer=approval_reviewer,
+            approval_reviewer_model=approval_reviewer_model,
         )
     )
     with OutputLogger(str(logdir), live=live):
@@ -149,6 +163,30 @@ def show_results(suite_name: str, results: SuiteResults, show_security_results: 
     help="The defense to use. `None` by default.",
 )
 @click.option(
+    "--approval-policy",
+    type=click.Choice(APPROVAL_POLICIES),
+    default=None,
+    help="Optional pre-execution policy: full-approve, full-escalate, or basil.",
+)
+@click.option(
+    "--approval-budget",
+    type=click.IntRange(min=0),
+    default=0,
+    help="Maximum number of reviewer escalations allowed for each task.",
+)
+@click.option(
+    "--approval-reviewer",
+    type=click.Choice(APPROVAL_REVIEWERS),
+    default="deterministic",
+    help="Use deterministic for keyless tests or openai-compatible for experiments.",
+)
+@click.option(
+    "--approval-reviewer-model",
+    type=str,
+    default=None,
+    help="OpenAI-compatible model id for the simulated reviewer.",
+)
+@click.option(
     "--system-message-name",
     type=str,
     default=None,
@@ -218,6 +256,10 @@ def main(
     model_id: str | None = None,
     attack: str | None = None,
     defense: str | None = None,
+    approval_policy: ApprovalPolicyName | None = None,
+    approval_budget: int = 0,
+    approval_reviewer: ReviewerName = "deterministic",
+    approval_reviewer_model: str | None = None,
     tool_delimiter: str = "tool",
     system_message_name: str | None = None,
     system_message: str | None = None,
@@ -255,6 +297,10 @@ def main(
                 system_message_name=system_message_name,
                 system_message=system_message,
                 force_rerun=force_rerun,
+                approval_policy=approval_policy,
+                approval_budget=approval_budget,
+                approval_reviewer=approval_reviewer,
+                approval_reviewer_model=approval_reviewer_model,
             )
         combined_results = SuiteResults(utility_results={}, security_results={}, injection_tasks_utility_results={})
         for suite_name, result in results.items():
@@ -282,6 +328,8 @@ def main(
             suites,
             repeat(model),
             repeat(logdir),
+            repeat(force_rerun),
+            repeat(benchmark_version),
             repeat(user_tasks),
             repeat(injection_tasks),
             repeat(model_id),
@@ -290,7 +338,12 @@ def main(
             repeat(tool_delimiter),
             repeat(system_message_name),
             repeat(system_message),
-            repeat(force_rerun),
+            repeat(None),
+            repeat(None),
+            repeat(approval_policy),
+            repeat(approval_budget),
+            repeat(approval_reviewer),
+            repeat(approval_reviewer_model),
         )
         results = p.starmap(benchmark_suite, arguments)
 
