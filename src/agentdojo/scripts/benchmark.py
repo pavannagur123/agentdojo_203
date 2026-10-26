@@ -13,12 +13,7 @@ from rich.live import Live
 from rich.logging import RichHandler
 
 from agentdojo.agent_pipeline.agent_pipeline import DEFENSES, AgentPipeline, PipelineConfig
-from agentdojo.approval.factory import (
-    APPROVAL_POLICIES,
-    APPROVAL_REVIEWERS,
-    ApprovalPolicyName,
-    ReviewerName,
-)
+from agentdojo.approval.factory import APPROVAL_POLICIES, ApprovalPolicyName
 from agentdojo.attacks.attack_registry import ATTACKS, load_attack
 from agentdojo.benchmark import SuiteResults, benchmark_suite_with_injections, benchmark_suite_without_injections
 from agentdojo.logging import OutputLogger
@@ -45,7 +40,6 @@ def benchmark_suite(
     tool_output_format: Literal["yaml", "json"] | None = None,
     approval_policy: ApprovalPolicyName | None = None,
     approval_budget: int = 0,
-    approval_reviewer: ReviewerName = "deterministic",
     approval_reviewer_model: str | None = None,
 ) -> SuiteResults:
     if not load_dotenv(".env"):
@@ -71,7 +65,6 @@ def benchmark_suite(
             tool_output_format=tool_output_format,
             approval_policy=approval_policy,
             approval_budget=approval_budget,
-            approval_reviewer=approval_reviewer,
             approval_reviewer_model=approval_reviewer_model,
         )
     )
@@ -175,16 +168,10 @@ def show_results(suite_name: str, results: SuiteResults, show_security_results: 
     help="Maximum number of reviewer escalations allowed for each task.",
 )
 @click.option(
-    "--approval-reviewer",
-    type=click.Choice(APPROVAL_REVIEWERS),
-    default="deterministic",
-    help="Use deterministic for keyless tests or openai-compatible for experiments.",
-)
-@click.option(
     "--approval-reviewer-model",
     type=str,
     default=None,
-    help="OpenAI-compatible model id for the simulated reviewer.",
+    help="OpenAI-compatible model id for the LLM-simulated human reviewer.",
 )
 @click.option(
     "--system-message-name",
@@ -258,7 +245,6 @@ def main(
     defense: str | None = None,
     approval_policy: ApprovalPolicyName | None = None,
     approval_budget: int = 0,
-    approval_reviewer: ReviewerName = "deterministic",
     approval_reviewer_model: str | None = None,
     tool_delimiter: str = "tool",
     system_message_name: str | None = None,
@@ -299,7 +285,6 @@ def main(
                 force_rerun=force_rerun,
                 approval_policy=approval_policy,
                 approval_budget=approval_budget,
-                approval_reviewer=approval_reviewer,
                 approval_reviewer_model=approval_reviewer_model,
             )
         combined_results = SuiteResults(utility_results={}, security_results={}, injection_tasks_utility_results={})
@@ -342,7 +327,6 @@ def main(
             repeat(None),
             repeat(approval_policy),
             repeat(approval_budget),
-            repeat(approval_reviewer),
             repeat(approval_reviewer_model),
         )
         results = p.starmap(benchmark_suite, arguments)

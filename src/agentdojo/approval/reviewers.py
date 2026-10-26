@@ -1,4 +1,4 @@
-"""Simulated reviewers used when an approval policy escalates."""
+"""LLM-simulated human reviewer used when an approval policy escalates."""
 
 import json
 from typing import Protocol
@@ -11,28 +11,9 @@ from agentdojo.approval.usage import extract_usage, requests_usage_cost
 
 class ApprovalReviewer(Protocol):
     name: str
+    model: str
 
     def review(self, context: ToolCallContext, policy_reason: str) -> ReviewerDecision: ...
-
-
-class DeterministicReviewer:
-    """Keyless reviewer for development and reproducible unit tests."""
-
-    name = "deterministic"
-
-    def review(self, context: ToolCallContext, policy_reason: str) -> ReviewerDecision:
-        matched = any(
-            not clause.prohibited and clause.tokens & set(context.metadata.action_terms)
-            for clause in context.contract.clauses
-        )
-        return ReviewerDecision(
-            approved=matched,
-            reason=(
-                "Approved because the effect has affirmative evidence in the original request."
-                if matched
-                else "Denied because the original request does not authorize the effect."
-            ),
-        )
 
 
 class OpenAICompatibleReviewer:

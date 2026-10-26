@@ -36,15 +36,25 @@ These rules are deterministic and inspectable. They can be revised after experim
 
 ## Reviewers
 
-The deterministic reviewer exists for development, unit testing, and reproducible smoke tests. It is not the final experimental human simulation.
+The only reviewer is an OpenAI-compatible LLM that simulates a human reviewer.
+It receives only information a realistic reviewer could receive: the original
+request, request clauses, proposed tool and arguments, provenance labels,
+effects, risk, and policy reason. It is not given injection labels, expected
+task results, benchmark ground truth, or other oracle information. Requests use
+temperature zero and JSON output. Unit tests replace the OpenAI client with a
+fake client that returns canned JSON decisions; there is no rule-based reviewer
+fallback in production.
 
-The `openai-compatible` reviewer is the assignment-facing simulated human. It receives only information a realistic reviewer could receive: the original request, request clauses, proposed tool and arguments, provenance labels, effects, risk, and policy reason. It is not given injection labels, expected task results, benchmark ground truth, or other oracle information.
+`basil` and `full-escalate` are capable of escalating, so pipeline construction
+fails immediately unless the API endpoint, API key, and reviewer model are
+configured. `full-approve` never escalates and therefore does not construct or
+require a reviewer.
 
 ## Decision evidence
 
 Each AgentDojo JSON trace gains a `basil` object containing:
 
-- selected policy and reviewer;
+- selected policy, reviewer, and reviewer model;
 - escalation budget and number used;
 - compiled request contract;
 - ordered tool-call decisions;
@@ -54,4 +64,3 @@ Each AgentDojo JSON trace gains a `basil` object containing:
 - reviewer token counts and cost field.
 
 This makes individual trajectories suitable for the report's failure analysis.
-

@@ -16,7 +16,7 @@ The BASIL-only tests can be run with:
 uv run pytest -q tests/test_approval
 ```
 
-They verify the unchanged upstream path, direct approval, denial, budget exhaustion, the two required baselines, effect classification, provenance, and nested-call interception. These tests never call a paid model.
+They verify the unchanged upstream path, direct approval, denial, budget exhaustion, the two required baselines, effect classification, provenance, nested-call interception, and reviewer configuration. Tests exercise the LLM reviewer through a shared fake OpenAI client and never call a paid model.
 
 Run the offline static policy audit with:
 
@@ -34,9 +34,15 @@ Copy `.env.example` to `.env` and populate it locally:
 ```text
 OPENAI_COMPATIBLE_BASE_URL=https://openrouter.ai/api/v1
 OPENAI_COMPATIBLE_API_KEY=your-key-here
+OPENAI_COMPATIBLE_REVIEWER_MODEL=your-reviewer-model-id
 ```
 
 `.env` is ignored by Git. For GitHub Actions, create repository secrets with the same names; never place a real key in a workflow or committed file.
+The reviewer model may be the same as the agent model or a different model. The
+`--approval-reviewer-model` option overrides `OPENAI_COMPATIBLE_REVIEWER_MODEL`.
+Selecting `basil` or `full-escalate` without the endpoint, API key, and reviewer
+model fails before the benchmark begins. `full-approve` cannot escalate and does
+not require reviewer configuration.
 
 ## Benchmark controls
 
@@ -48,15 +54,6 @@ uv run python -m agentdojo.scripts.benchmark \
   --suite workspace --user-task user_task_0
 ```
 
-BASIL with a keyless deterministic reviewer:
-
-```bash
-uv run python -m agentdojo.scripts.benchmark \
-  --model openai-compatible --model-id <agent-model-id> \
-  --suite workspace --user-task user_task_0 \
-  --approval-policy basil --approval-budget 2
-```
-
 BASIL with the simulated LLM reviewer:
 
 ```bash
@@ -64,7 +61,6 @@ uv run python -m agentdojo.scripts.benchmark \
   --model openai-compatible --model-id <agent-model-id> \
   --suite workspace --user-task user_task_0 \
   --approval-policy basil --approval-budget 2 \
-  --approval-reviewer openai-compatible \
   --approval-reviewer-model <reviewer-model-id>
 ```
 
