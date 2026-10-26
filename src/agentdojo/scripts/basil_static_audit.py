@@ -10,13 +10,30 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from agentdojo.approval.gate import ApprovalGate
+from agentdojo.approval.intent import RuleBasedIntentCompiler
 from agentdojo.approval.metadata import infer_tool_metadata
+from agentdojo.approval.models import ToolCallContext
 from agentdojo.approval.policies import BasilPolicy
-from agentdojo.approval.reviewers import DeterministicReviewer
+from agentdojo.approval.provenance import infer_argument_origins
 from agentdojo.functions_runtime import FunctionCall
 from agentdojo.task_suite.load_suites import get_suites
-from agentdojo.types import ChatToolResultMessage, text_content_block_from_string
+from agentdojo.types import ChatMessage, ChatToolResultMessage, text_content_block_from_string
+
+
+def _policy_decision(query: str, call: FunctionCall, description: str, messages: list[ChatMessage]):
+    """Evaluate BASIL policy coverage without invoking the LLM reviewer."""
+
+    metadata = infer_tool_metadata(call.function, description)
+    context = ToolCallContext(
+        query=query,
+        function=call.function,
+        arguments=dict(call.args),
+        tool_description=description,
+        metadata=metadata,
+        argument_origins=infer_argument_origins(dict(call.args), query, messages),
+        contract=RuleBasedIntentCompiler().compile(query),
+    )
+    return BasilPolicy().decide(context)
 
 
 def run_static_audit(benchmark_version: str = "v1.2.2") -> dict[str, Any]:
@@ -28,11 +45,9 @@ def run_static_audit(benchmark_version: str = "v1.2.2") -> dict[str, Any]:
         denied_legitimate = []
         for task in suite.user_tasks.values():
             environment = task.init_environment(base_environment.model_copy(deep=True))
-            gate = ApprovalGate(BasilPolicy(), DeterministicReviewer(), escalation_budget=10_000)
-            gate.start_task(task.PROMPT)
             for call in task.ground_truth(environment):
-                result = gate.decide(task.PROMPT, call, tools[call.function].description, [])
-                decision = result.record.policy_decision.value
+                result = _policy_decision(task.PROMPT, call, tools[call.function].description, [])
+                decision = result.decision.value
                 legitimate_counts[decision] += 1
                 if decision == "deny":
                     denied_legitimate.append({"user_task": task.ID, "function": call.function, "reason": result.reason})
@@ -40,8 +55,6 @@ def run_static_audit(benchmark_version: str = "v1.2.2") -> dict[str, Any]:
         proxy_counts: Counter[str] = Counter()
         for task in suite.user_tasks.values():
             for injection_task in suite.injection_tasks.values():
-                gate = ApprovalGate(BasilPolicy(), DeterministicReviewer(), escalation_budget=10_000)
-                gate.start_task(task.PROMPT)
                 for call in injection_task.ground_truth(base_environment.model_copy(deep=True)):
                     if call.function not in tools:
                         continue
@@ -57,8 +70,8 @@ def run_static_audit(benchmark_version: str = "v1.2.2") -> dict[str, Any]:
                         tool_call=source_call,
                         error=None,
                     )
-                    result = gate.decide(task.PROMPT, call, tool.description, [simulated_untrusted_output])
-                    proxy_counts[result.record.policy_decision.value] += 1
+                    result = _policy_decision(task.PROMPT, call, tool.description, [simulated_untrusted_output])
+                    proxy_counts[result.decision.value] += 1
 
         proxy_total = sum(proxy_counts.values())
         report["suites"][suite_name] = {

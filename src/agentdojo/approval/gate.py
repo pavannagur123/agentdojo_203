@@ -25,7 +25,7 @@ class ApprovalGate:
     def __init__(
         self,
         policy: ApprovalPolicy,
-        reviewer: ApprovalReviewer,
+        reviewer: ApprovalReviewer | None,
         escalation_budget: int,
         intent_compiler: RuleBasedIntentCompiler | None = None,
     ) -> None:
@@ -79,6 +79,8 @@ class ApprovalGate:
             else:
                 self.escalations_used += 1
                 try:
+                    if self.reviewer is None:
+                        raise RuntimeError("No LLM reviewer is configured")
                     reviewer_decision = self.reviewer.review(context, policy_decision.reason)
                 except Exception as error:
                     reviewer_decision = ReviewerDecision(
@@ -109,6 +111,7 @@ class ApprovalGate:
             reviewer_estimated_cost_usd=(
                 reviewer_decision.estimated_cost_usd if reviewer_decision is not None else 0.0
             ),
+            reviewer_model=self.reviewer.model if self.reviewer is not None else None,
         )
         self.records.append(record)
         return GateResult(decision=final_decision, reason=reason, record=record)
@@ -118,7 +121,8 @@ class ApprovalGate:
 
         return {
             "policy": self.policy.name,
-            "reviewer": self.reviewer.name,
+            "reviewer": self.reviewer.name if self.reviewer is not None else None,
+            "reviewer_model": self.reviewer.model if self.reviewer is not None else None,
             "escalation_budget": self.escalation_budget,
             "escalations_used": self.escalations_used,
             "contract": self.contract.model_dump(mode="json") if self.contract is not None else None,

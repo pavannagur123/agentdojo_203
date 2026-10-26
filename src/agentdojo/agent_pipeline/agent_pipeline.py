@@ -29,7 +29,7 @@ from agentdojo.agent_pipeline.tool_execution import (
     ToolsExecutor,
     tool_result_to_str,
 )
-from agentdojo.approval.factory import ApprovalPolicyName, ReviewerName, build_approval_gate
+from agentdojo.approval.factory import ApprovalPolicyName, build_approval_gate
 from agentdojo.functions_runtime import EmptyEnv, Env, FunctionsRuntime
 from agentdojo.logging import Logger
 from agentdojo.models import MODEL_PROVIDERS, ModelsEnum
@@ -169,10 +169,8 @@ class PipelineConfig(BaseModel):
     """Optional tool-call approval policy. None preserves upstream AgentDojo behaviour."""
     approval_budget: int = 0
     """Maximum reviewer escalations per task; later escalations fail closed."""
-    approval_reviewer: ReviewerName = "deterministic"
-    """Reviewer used for escalated calls. The deterministic option is intended for tests."""
     approval_reviewer_model: str | None = None
-    """Model id used by the openai-compatible simulated reviewer."""
+    """Model id used by the OpenAI-compatible simulated human reviewer."""
 
     @model_validator(mode="after")
     def validate_system_message(self) -> Self:
@@ -230,7 +228,6 @@ class AgentPipeline(BasePipelineElement):
             build_approval_gate(
                 config.approval_policy,
                 config.approval_budget,
-                config.approval_reviewer,
                 config.approval_reviewer_model,
             )
             if config.approval_policy is not None

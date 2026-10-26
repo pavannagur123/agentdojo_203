@@ -56,7 +56,7 @@ def test_report_marks_failure_trajectories(tmp_path: Path) -> None:
         "attack_type": "tool_knowledge",
         "utility": False,
         "security": True,
-        "basil": {"policy": "basil", "reviewer": "deterministic", "escalation_budget": 0, "decisions": []},
+        "basil": {"policy": "basil", "reviewer": "openai-compatible", "escalation_budget": 0, "decisions": []},
     }
     (tmp_path / "failure.json").write_text(json.dumps(trace))
 

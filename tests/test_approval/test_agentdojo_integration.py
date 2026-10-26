@@ -45,7 +45,10 @@ class ScriptedWorkspaceAgent(BasePipelineElement):
         return query, runtime, env, [*messages, output], extra_args
 
 
-def test_basil_completes_real_agentdojo_task_and_logs_ledger(tmp_path: Path) -> None:
+def test_basil_completes_real_agentdojo_task_and_logs_ledger(
+    tmp_path: Path,
+    configured_llm_reviewer: object,
+) -> None:
     suite = get_suite("v1.2.2", "workspace")
     task = suite.get_user_task_by_id("user_task_0")
     pipeline = AgentPipeline.from_config(
@@ -79,5 +82,7 @@ def test_basil_completes_real_agentdojo_task_and_logs_ledger(tmp_path: Path) -> 
     assert utility is True
     assert security is True
     assert trace["basil"]["policy"] == "basil"
+    assert trace["basil"]["reviewer"] == "openai-compatible"
+    assert trace["basil"]["reviewer_model"] == "test/reviewer-model"
     assert trace["basil"]["decisions"][0]["function"] == "search_calendar_events"
     assert trace["basil"]["decisions"][0]["final_decision"] == "approve"

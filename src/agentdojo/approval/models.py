@@ -134,6 +134,7 @@ class ApprovalRecord(BaseModel):
     reviewer_input_tokens: int = 0
     reviewer_output_tokens: int = 0
     reviewer_estimated_cost_usd: float = 0.0
+    reviewer_model: str | None = None
 
 
 class GateResult(BaseModel):

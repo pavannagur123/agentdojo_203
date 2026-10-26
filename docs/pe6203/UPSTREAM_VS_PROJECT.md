@@ -9,7 +9,7 @@ The repository started from ETH Zurich AgentDojo 0.1.35. The benchmark suites, s
 | Authority | Agent decides which tools to request | Contract compiled from the trusted user request |
 | Provenance | Tool arguments are not assigned trust origins | User/tool/agent argument-origin labels |
 | Risk | Tools expose schemas and descriptions | Deterministic effect and risk classification |
-| Human review | No budgeted simulated reviewer | Deterministic test reviewer and optional LLM reviewer |
+| Human review | No budgeted simulated reviewer | Required LLM-simulated human reviewer for escalating policies |
 | Budget | No escalation budget | Per-task budget `k`, followed by fail-closed denial |
 | Evidence | Conversation and benchmark result traces | Append-only authorization decision ledger |
 | Baselines | Undefended and existing prompt-injection defenses | Full-approve and full-escalate approval baselines |
