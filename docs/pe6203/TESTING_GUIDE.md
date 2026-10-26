@@ -35,11 +35,15 @@ Copy `.env.example` to `.env` and populate it locally:
 OPENAI_COMPATIBLE_BASE_URL=https://openrouter.ai/api/v1
 OPENAI_COMPATIBLE_API_KEY=your-key-here
 OPENAI_COMPATIBLE_REVIEWER_MODEL=your-reviewer-model-id
+OPENAI_COMPATIBLE_APPROVAL_PLANNER_MODEL=your-planner-model-id
 ```
 
 `.env` is ignored by Git. For GitHub Actions, create repository secrets with the same names; never place a real key in a workflow or committed file.
 The reviewer model may be the same as the agent model or a different model. The
 `--approval-reviewer-model` option overrides `OPENAI_COMPATIBLE_REVIEWER_MODEL`.
+The optional `--approval-planner-model` option overrides
+`OPENAI_COMPATIBLE_APPROVAL_PLANNER_MODEL`; when omitted, the original
+rule-based request-clause compiler remains active.
 Selecting `basil` or `full-escalate` without the endpoint, API key, and reviewer
 model fails before the benchmark begins. `full-approve` cannot escalate and does
 not require reviewer configuration.
@@ -61,7 +65,8 @@ uv run python -m agentdojo.scripts.benchmark \
   --model openai-compatible --model-id <agent-model-id> \
   --suite workspace --user-task user_task_0 \
   --approval-policy basil --approval-budget 2 \
-  --approval-reviewer-model <reviewer-model-id>
+  --approval-reviewer-model <reviewer-model-id> \
+  --approval-planner-model <planner-model-id>
 ```
 
 Replace `basil` with `full-approve` or `full-escalate` to run the required baselines. Use distinct output directories or `--force-rerun` when comparing policies because AgentDojo caches completed task traces.
@@ -110,3 +115,19 @@ This proves that the live LLM integration, separate reviewer, escalation budget,
 decision ledger, and usage accounting work together. It is only a one-task smoke
 test, not evidence of overall safety or the final assignment benchmark. Final
 claims must come from the complete control/baseline/BASIL experiment matrix.
+
+## Planner and stronger-reviewer experiment
+
+On 26 October 2026, all 97 benign tasks were run with `openai/gpt-4o-mini`
+as the agent and authorization planner, `openai/gpt-4.1-mini` as the final
+reviewer, BASIL, and `k = 2`. Exact repeated escalations reused the earlier LLM
+verdict, and the agent system message asked it to ground side effects and avoid
+retrying identical blocked calls.
+
+The combined task-completion result was 63/97 (64.95%): Banking 8/16, Slack
+13/21, Travel 11/20, and Workspace 31/40. The earlier GPT-4o Mini reviewer
+baseline was 44/97 (45.36%), so the combined architecture improved completion
+by 19 tasks, or 19.59 percentage points. Four focused live checks also approved
+two explicitly authorized actions using retrieved data and denied two
+tool-originated payment/exfiltration instructions. These focused checks are not
+a replacement for the full attacked-task benchmark.

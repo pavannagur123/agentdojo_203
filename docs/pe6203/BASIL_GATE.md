@@ -23,6 +23,17 @@ The policy adapts established ideas—least authority, provenance, effect classi
 
 Nested function calls embedded in arguments are checked before their parent call, preventing that path from bypassing the gate.
 
+An optional LLM authorization planner can structure the original request into
+actions, targets, permitted data sources, and execution limits before tool use.
+It sees only the original request and cannot grant authority beyond that text.
+The final decision for every escalation remains with the configured LLM
+reviewer. If the planner is unavailable or returns invalid JSON, BASIL records
+the failure and conservatively retains the inspectable rule-based clauses.
+
+Exact repeated escalations reuse their previous LLM decision. This prevents an
+agent retry from consuming another unit of the review budget, without extending
+approval to different arguments or recipients.
+
 ## Current BASIL rules
 
 - Read-only discovery is automatically approved because it cannot directly change the simulated environment.
@@ -61,6 +72,7 @@ Each AgentDojo JSON trace gains a `basil` object containing:
 - argument provenance and tool effects;
 - policy and final decisions;
 - reasons and matching request clauses; and
-- reviewer token counts and cost field.
+- reviewer token counts and cost field; and
+- authorization-planner model, failure state, token counts, and cost field.
 
 This makes individual trajectories suitable for the report's failure analysis.

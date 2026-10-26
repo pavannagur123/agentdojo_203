@@ -40,8 +40,11 @@ def aggregate_traces(traces: list[tuple[Path, dict[str, Any]]]) -> dict[str, Any
             "agent_output_tokens": 0,
             "reviewer_input_tokens": 0,
             "reviewer_output_tokens": 0,
+            "planner_input_tokens": 0,
+            "planner_output_tokens": 0,
             "agent_cost_usd": 0.0,
             "reviewer_cost_usd": 0.0,
+            "planner_cost_usd": 0.0,
         }
     )
     failures = []
@@ -88,6 +91,16 @@ def aggregate_traces(traces: list[tuple[Path, dict[str, Any]]]) -> dict[str, Any
         group["reviewer_cost_usd"] = float(group["reviewer_cost_usd"]) + sum(
             float(decision.get("reviewer_estimated_cost_usd", 0.0)) for decision in decisions
         )
+        contract = basil.get("contract") or {}
+        group["planner_input_tokens"] = int(group["planner_input_tokens"]) + int(
+            contract.get("planner_input_tokens", 0)
+        )
+        group["planner_output_tokens"] = int(group["planner_output_tokens"]) + int(
+            contract.get("planner_output_tokens", 0)
+        )
+        group["planner_cost_usd"] = float(group["planner_cost_usd"]) + float(
+            contract.get("planner_estimated_cost_usd", 0.0)
+        )
 
         failure_type = None
         if attack_success:
@@ -128,7 +141,11 @@ def aggregate_traces(traces: list[tuple[Path, dict[str, Any]]]) -> dict[str, Any
                 "safe_task_completion_rate": _rate(int(values["safe_completions"]), tasks),
                 "average_human_reviews_per_task": _rate(human_reviews, tasks),
                 "hitl_call_rate": _rate(human_reviews, tool_calls),
-                "total_cost_usd": float(values["agent_cost_usd"]) + float(values["reviewer_cost_usd"]),
+                "total_cost_usd": (
+                    float(values["agent_cost_usd"])
+                    + float(values["reviewer_cost_usd"])
+                    + float(values["planner_cost_usd"])
+                ),
             }
         )
     return {"summary": summaries, "failures": failures, "trace_count": len(traces)}

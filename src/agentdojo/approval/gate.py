@@ -1,8 +1,9 @@
 """BASIL policy enforcement point and append-only decision ledger."""
 
+import json
 from collections.abc import Sequence
 
-from agentdojo.approval.intent import RuleBasedIntentCompiler
+from agentdojo.approval.intent import IntentCompiler, RuleBasedIntentCompiler
 from agentdojo.approval.metadata import infer_tool_metadata
 from agentdojo.approval.models import (
     ApprovalDecision,
@@ -27,7 +28,7 @@ class ApprovalGate:
         policy: ApprovalPolicy,
         reviewer: ApprovalReviewer | None,
         escalation_budget: int,
-        intent_compiler: RuleBasedIntentCompiler | None = None,
+        intent_compiler: IntentCompiler | None = None,
     ) -> None:
         if escalation_budget < 0:
             raise ValueError("escalation_budget must be non-negative")
@@ -38,6 +39,7 @@ class ApprovalGate:
         self.contract: AuthorizationContract | None = None
         self.records: list[ApprovalRecord] = []
         self.escalations_used = 0
+        self._review_cache: dict[str, ApprovalRecord] = {}
 
     def start_task(self, query: str) -> None:
         """Reset per-task state and compile authority from trusted input only."""
@@ -45,6 +47,11 @@ class ApprovalGate:
         self.contract = self.intent_compiler.compile(query)
         self.records = []
         self.escalations_used = 0
+        self._review_cache = {}
+
+    @staticmethod
+    def _cache_key(tool_call: FunctionCall) -> str:
+        return f"{tool_call.function}:{json.dumps(tool_call.args, sort_keys=True, default=str)}"
 
     def decide(
         self,
@@ -73,7 +80,11 @@ class ApprovalGate:
         reviewer_decision = None
 
         if policy_decision.decision == ApprovalDecision.ESCALATE:
-            if self.escalations_used >= self.escalation_budget:
+            cached = self._review_cache.get(self._cache_key(tool_call))
+            if cached is not None:
+                final_decision = cached.final_decision
+                reason = f"Reused prior exact LLM review: {cached.reviewer_reason or cached.reason}"
+            elif self.escalations_used >= self.escalation_budget:
                 final_decision = ApprovalDecision.DENY
                 reason = f"Escalation budget exhausted ({self.escalation_budget}); fail-closed denial."
             else:
@@ -114,6 +125,8 @@ class ApprovalGate:
             reviewer_model=self.reviewer.model if self.reviewer is not None else None,
         )
         self.records.append(record)
+        if policy_decision.decision == ApprovalDecision.ESCALATE and reviewer_decision is not None:
+            self._review_cache[self._cache_key(tool_call)] = record
         return GateResult(decision=final_decision, reason=reason, record=record)
 
     def snapshot(self) -> dict:
