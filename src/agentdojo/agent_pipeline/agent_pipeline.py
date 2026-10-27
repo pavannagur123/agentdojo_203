@@ -30,6 +30,7 @@ from agentdojo.agent_pipeline.tool_execution import (
     tool_result_to_str,
 )
 from agentdojo.approval.factory import ApprovalPolicyName, build_approval_gate
+from agentdojo.approval.plan_context import AuthorizationPlanContext
 from agentdojo.functions_runtime import EmptyEnv, Env, FunctionsRuntime
 from agentdojo.logging import Logger
 from agentdojo.models import MODEL_PROVIDERS, ModelsEnum
@@ -244,6 +245,9 @@ class AgentPipeline(BasePipelineElement):
             else None
         )
         tools_executor = partial(ToolsExecutor, approval_gate=approval_gate)
+        approval_plan_components: list[BasePipelineElement] = (
+            [AuthorizationPlanContext(approval_gate)] if approval_gate is not None else []
+        )
         if approval_gate is not None:
             system_message_component.system_message = (
                 f"{system_message_component.system_message}\n\n{APPROVAL_AGENT_GUIDANCE}"
@@ -254,7 +258,7 @@ class AgentPipeline(BasePipelineElement):
 
         if config.defense is None:
             tools_loop = ToolsExecutionLoop([tools_executor(tool_output_formatter), llm])
-            pipeline = cls([system_message_component, init_query_component, llm, tools_loop])
+            pipeline = cls([system_message_component, init_query_component, *approval_plan_components, llm, tools_loop])
             pipeline.name = f"{llm_name}{approval_name_suffix}"
             return pipeline
         if config.defense == "tool_filter":
@@ -267,6 +271,7 @@ class AgentPipeline(BasePipelineElement):
                 [
                     system_message_component,
                     init_query_component,
+                    *approval_plan_components,
                     OpenAILLMToolFilter(TOOL_FILTER_PROMPT, llm.client, llm_name),
                     llm,
                     tools_loop,
@@ -292,6 +297,7 @@ class AgentPipeline(BasePipelineElement):
                 [
                     system_message_component,
                     init_query_component,
+                    *approval_plan_components,
                     llm,
                     tools_loop,
                 ]
@@ -300,7 +306,7 @@ class AgentPipeline(BasePipelineElement):
             return pipeline
         if config.defense == "repeat_user_prompt":
             tools_loop = ToolsExecutionLoop([tools_executor(tool_output_formatter), InitQuery(), llm])
-            pipeline = cls([system_message_component, init_query_component, llm, tools_loop])
+            pipeline = cls([system_message_component, init_query_component, *approval_plan_components, llm, tools_loop])
             pipeline.name = f"{llm_name}-{config.defense}{approval_name_suffix}"
             return pipeline
         if config.defense == "spotlighting_with_delimiting":
@@ -314,7 +320,7 @@ class AgentPipeline(BasePipelineElement):
             tools_loop = ToolsExecutionLoop(
                 [tools_executor(tool_output_formatter=delimited_tool_output_formatter), llm]
             )
-            pipeline = cls([system_message_component, init_query_component, llm, tools_loop])
+            pipeline = cls([system_message_component, init_query_component, *approval_plan_components, llm, tools_loop])
             pipeline.name = f"{llm_name}-{config.defense}{approval_name_suffix}"
             return pipeline
         raise ValueError("Invalid defense name")

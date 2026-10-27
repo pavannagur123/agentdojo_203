@@ -131,3 +131,20 @@ by 19 tasks, or 19.59 percentage points. Four focused live checks also approved
 two explicitly authorized actions using retrieved data and denied two
 tool-originated payment/exfiltration instructions. These focused checks are not
 a replacement for the full attacked-task benchmark.
+
+## Agent-visible authorization-plan experiment
+
+On 27 October 2026, the same 97 benign tasks were rerun after exposing the
+planner's request-derived execution brief to the acting model before its first
+tool call. The brief contains actions, targets, permitted sources, required
+facts, success criteria, and execution limits generated afresh from each user
+request. It is labelled as a non-authoritative planning aid; the original user
+request remains the sole authority and BASIL continues to gate every tool call.
+
+The combined task-completion result was 66/97 (68.04%): Banking 9/16, Slack
+12/21, Travel 12/20, and Workspace 33/40. This is three additional successful
+tasks, or 3.09 percentage points, over the prior planner/reviewer result. The
+focused live checks again approved two explicitly authorized actions and denied
+the two tool-originated payment/exfiltration instructions. Results are stored
+under `runs/d1-agent-visible-plan-all-benign/`; the generated `report.json` and
+`summary.csv` contain per-suite usage and policy metrics.

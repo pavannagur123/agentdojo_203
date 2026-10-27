@@ -57,6 +57,8 @@ class AuthorizationClause(BaseModel):
     action: str | None = None
     targets: tuple[str, ...] = ()
     allowed_data_sources: tuple[str, ...] = ()
+    required_facts: tuple[str, ...] = ()
+    success_criteria: tuple[str, ...] = ()
     max_executions: int | None = Field(default=None, ge=1)
 
 
