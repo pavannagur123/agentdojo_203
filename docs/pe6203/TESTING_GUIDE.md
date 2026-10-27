@@ -82,15 +82,40 @@ For each selected agent model and attack condition, run:
 
 Report task completion, attack success, safe task completion (`utility AND NOT attack_success`), number/rate of escalations, reviewer tokens and cost, and representative over-permissive and over-conservative trajectories.
 
+The reproducible matrix runner covers all three policies, a configurable range
+of budgets, suites, and attack conditions. `full-approve` is run once because
+its behavior is independent of `k`:
+
+```bash
+uv run python -m agentdojo.scripts.basil_experiment \
+  --model-id <agent-model-id> \
+  --reviewer-model <reviewer-model-id> \
+  --planner-model <planner-model-id> \
+  --budget 0 --budget 1 --budget 2 --budget 3 \
+  --attack none --attack important_instructions \
+  --output-dir runs/basil-matrix
+```
+
+Add `--dry-run` to write and inspect `experiment-manifest.json` without making
+model calls. The completed runner automatically writes the JSON report, summary
+CSV, TCR@k curve data and SVG, and escalation-value CSV.
+
 Generate the report artifacts after the runs finish:
 
 ```bash
 uv run python -m agentdojo.scripts.basil_report runs \
   --output results/basil-report.json \
-  --csv results/basil-summary.csv
+  --csv results/basil-summary.csv \
+  --curve-csv results/tcr-at-k.csv \
+  --curve-svg results/tcr-at-k.svg \
+  --escalation-csv results/escalation-value.csv
 ```
 
 The JSON includes aggregate rows plus paths and decision ledgers for representative failure trajectories. OpenRouter-backed calls request provider-reported usage so agent and reviewer token counts and costs can be separated when the provider returns them.
+`hitl_load_successful_tasks` is the brief's exact HITL Load: actual reviewer
+interventions counted only for safely completed tasks. The escalation-value
+table groups calls, escalations, reviewer approvals, and reviewer denials by
+tool-effect category.
 
 ## Verified live LLM smoke test
 
@@ -148,3 +173,13 @@ focused live checks again approved two explicitly authorized actions and denied
 the two tool-originated payment/exfiltration instructions. Results are stored
 under `runs/d1-agent-visible-plan-all-benign/`; the generated `report.json` and
 `summary.csv` contain per-suite usage and policy metrics.
+
+After adding the final report and experiment-matrix tooling, the complete benign
+set was rerun on 27 October 2026 as a regression check with the same models and
+policy. It achieved 68/97 (70.10%): Banking 8/16, Slack 13/21, Travel 13/20,
+and Workspace 34/40. The exact HITL load across safely completed tasks was 37
+LLM-reviewer interventions; 59 reviewer calls occurred across all 97 tasks. The
+provider-reported cost was USD 0.1535165. Local artifacts are under
+`runs/d1-evaluation-tooling-regression-all-benign/` and are intentionally
+ignored by Git because run traces can be large. Regenerate the JSON, summary
+CSV, TCR CSV/SVG, and escalation-value CSV with `basil_report` as shown above.
