@@ -23,12 +23,16 @@ The policy adapts established ideas—least authority, provenance, effect classi
 
 Nested function calls embedded in arguments are checked before their parent call, preventing that path from bypassing the gate.
 
-An optional LLM authorization planner can structure the original request into
-actions, targets, permitted data sources, and execution limits before tool use.
-It sees only the original request and cannot grant authority beyond that text.
-The final decision for every escalation remains with the configured LLM
-reviewer. If the planner is unavailable or returns invalid JSON, BASIL records
-the failure and conservatively retains the inspectable rule-based clauses.
+An optional LLM authorization planner structures the original request into
+actions, targets, permitted data sources, required facts, success criteria,
+and execution limits before tool use. It sees only the original request and
+cannot grant authority beyond that text. The resulting execution brief is
+shown to the acting model as a planning aid so a smaller model is less likely
+to omit a requested step. It is explicitly non-authoritative: the original
+request remains the sole authority, and the independent gate still evaluates
+every proposed tool call. If the planner is unavailable or returns invalid
+JSON, BASIL records the failure and conservatively retains the inspectable
+rule-based clauses.
 
 Exact repeated escalations reuse their previous LLM decision. This prevents an
 agent retry from consuming another unit of the review budget, without extending

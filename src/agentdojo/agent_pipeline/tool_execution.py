@@ -96,7 +96,11 @@ class ToolsExecutor(BasePipelineElement):
         if messages[-1]["tool_calls"] is None or len(messages[-1]["tool_calls"]) == 0:
             return query, runtime, env, messages, extra_args
 
-        if self.approval_gate is not None and not any(message["role"] == "tool" for message in messages):
+        if (
+            self.approval_gate is not None
+            and not any(message["role"] == "tool" for message in messages)
+            and not extra_args.get("approval_plan_initialized")
+        ):
             self.approval_gate.start_task(query)
 
         tool_call_results = []
