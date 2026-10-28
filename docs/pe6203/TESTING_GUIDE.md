@@ -34,8 +34,8 @@ Copy `.env.example` to `.env` and populate it locally:
 ```text
 OPENAI_COMPATIBLE_BASE_URL=https://openrouter.ai/api/v1
 OPENAI_COMPATIBLE_API_KEY=your-key-here
-OPENAI_COMPATIBLE_REVIEWER_MODEL=your-reviewer-model-id
-OPENAI_COMPATIBLE_APPROVAL_PLANNER_MODEL=your-planner-model-id
+OPENAI_COMPATIBLE_REVIEWER_MODEL=openai/gpt-4.1
+OPENAI_COMPATIBLE_APPROVAL_PLANNER_MODEL=openai/gpt-4.1
 ```
 
 `.env` is ignored by Git. For GitHub Actions, create repository secrets with the same names; never place a real key in a workflow or committed file.
@@ -47,6 +47,29 @@ rule-based request-clause compiler remains active.
 Selecting `basil` or `full-escalate` without the endpoint, API key, and reviewer
 model fails before the benchmark begins. `full-approve` cannot escalate and does
 not require reviewer configuration.
+
+## Project reference configuration
+
+Use `openai/gpt-4.1` for all three LLM roles when reproducing the project's
+current reference result: acting agent, authorization planner, and LLM
+reviewer. This is a documented experiment setting, not a hard-coded policy
+rule; every model remains configurable for ablations and cost comparisons.
+
+Run all four benign suites with BASIL and an escalation budget of two:
+
+```bash
+uv run python -m agentdojo.scripts.basil_experiment \
+  --model-id openai/gpt-4.1 \
+  --reviewer-model openai/gpt-4.1 \
+  --planner-model openai/gpt-4.1 \
+  --policy basil --budget 2 --attack none \
+  --output-dir runs/d1-gpt41-all-benign
+```
+
+The command reads the OpenRouter endpoint and API key from `.env`. It writes
+full traces under the ignored `runs/` directory and produces the report, CSV,
+TCR curve, and escalation-value artifacts there. Do not commit `.env` or raw
+traces.
 
 ## Benchmark controls
 
@@ -183,3 +206,24 @@ provider-reported cost was USD 0.1535165. Local artifacts are under
 `runs/d1-evaluation-tooling-regression-all-benign/` and are intentionally
 ignored by Git because run traces can be large. Regenerate the JSON, summary
 CSV, TCR CSV/SVG, and escalation-value CSV with `basil_report` as shown above.
+
+## GPT-4.1 full benign reference run
+
+On 28 October 2026, all 97 benign tasks were rerun through OpenRouter with
+`openai/gpt-4.1` as the acting agent, authorization planner, and LLM reviewer,
+BASIL, and `k = 2`. The result was **68/97 (70.10%)**: Banking 10/16,
+Slack 14/21, Travel 14/20, and Workspace 30/40.
+
+Across the run there were 375 tool calls, 49 escalations, and 44 actual LLM
+reviewer calls. The LLM reviewer denied four calls and five further escalations
+were denied because their per-task review budget was exhausted. Provider-
+reported cost was USD 1.705978: USD 1.354008 for the acting agent, USD 0.268328
+for the planner, and USD 0.083642 for the reviewer.
+
+The committed aggregate snapshot is
+`results/d1-gpt41-all-benign-summary.json`, with per-suite rows in
+`results/d1-gpt41-all-benign-summary.csv`. These figures measure benign task
+completion only. They do not establish attack resistance; use the attacked
+matrix and safe-task-completion metric for that claim. The stronger-model run
+improved by two tasks over the 66/97 agent-visible-plan run, but matched the
+later 68/97 GPT-4o-Mini regression total at substantially higher cost.
