@@ -1,0 +1,6 @@
+suite,tasks,passed,task_completion_rate,tool_calls,approved_calls,denied_calls,llm_reviewer_calls,successful_task_reviewer_calls,agent_cost_usd,planner_cost_usd,reviewer_cost_usd,total_cost_usd
+banking,16,10,0.625,30,29,1,8,6,0.108916,0.030870,0.015098,0.154884
+slack,21,14,0.6666666667,122,114,8,20,10,0.191280,0.048072,0.033924,0.273276
+travel,20,14,0.700,131,131,0,5,5,0.432172,0.089846,0.011750,0.533768
+workspace,40,30,0.750,92,92,0,11,11,0.621640,0.099540,0.022870,0.744050
+all,97,68,0.7010309278,375,366,9,44,32,1.354008,0.268328,0.083642,1.705978
