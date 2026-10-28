@@ -56,6 +56,14 @@ To inspect the results, go to the dedicated [results page](https://agentdojo.spy
 
 This fork adds an optional **Budget-Aware Scoped Intent Ledger (BASIL)** gate for the NTU PE6203 safety-approval-policies project. The original AgentDojo path remains the default when no approval policy is selected. See the [BASIL design](docs/pe6203/BASIL_GATE.md), [upstream/project separation](docs/pe6203/UPSTREAM_VS_PROJECT.md), and [testing guide](docs/pe6203/TESTING_GUIDE.md).
 
+The project's reproducible reference configuration uses `openai/gpt-4.1` for
+the acting agent, authorization planner, and LLM reviewer, with the BASIL
+policy and an escalation budget of two. Its committed benign-evaluation
+summary is in
+[`results/d1-gpt41-all-benign-summary.json`](results/d1-gpt41-all-benign-summary.json).
+The API key stays only in the ignored local `.env` file; no secret or raw trace
+is committed.
+
 ## Documentation of the Dojo
 
 Take a look at our [documentation](https://agentdojo.spylab.ai/).
