@@ -64,6 +64,11 @@ summary is in
 The API key stays only in the ignored local `.env` file; no secret or raw trace
 is committed.
 
+For a professor-facing live run, use the
+[`live_demo` presentation runner](docs/pe6203/LIVE_DEMO.md). It can execute a
+scored benchmark task or accept arbitrary input while showing the Planner LLM,
+tool-call policy, and LLM Reviewer decisions directly in the terminal.
+
 ## Documentation of the Dojo
 
 Take a look at our [documentation](https://agentdojo.spylab.ai/).
