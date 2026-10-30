@@ -68,6 +68,8 @@ For a professor-facing live run, use the
 [`live_demo` presentation runner](docs/pe6203/LIVE_DEMO.md). It can execute a
 scored benchmark task or accept arbitrary input while showing the Planner LLM,
 tool-call policy, and LLM Reviewer decisions directly in the terminal.
+For a copy-and-paste walkthrough beginning with a fresh clone, see
+[`DEMO_STEPS.md`](DEMO_STEPS.md).
 
 ## Documentation of the Dojo
 
